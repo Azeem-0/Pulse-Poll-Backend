@@ -10,6 +10,7 @@ use webauthn_rs::{prelude::PublicKeyCredential, Webauthn};
 
 use crate::{
     config::config::{AppResult, Error, LoginStateStore, RegistrationStateStore},
+    db::mongodb_repository::MongoDB,
     models::auth_model::RegisterRequest,
 };
 
@@ -18,6 +19,7 @@ pub async fn authentication_start(
     data: web::Json<RegisterRequest>,
     webauthn: Data<Webauthn>,
     login_store: Data<LoginStateStore>,
+    db: Data<MongoDB>,
 ) -> AppResult<HttpResponse> {
     let username = &data.username;
     let mut session = login_store.lock().unwrap();
@@ -25,6 +27,12 @@ pub async fn authentication_start(
     session.remove("auth_state");
 
     // retrieve the user's public key from the database, perform a database operation here.
+
+    let sk = db
+        .user_repository
+        .get_user_public_key(username)
+        .await
+        .unwrap();
 
     // let (rcr, auth_state) = webauthn
     // .start_passkey_authentication(allow_credentials)

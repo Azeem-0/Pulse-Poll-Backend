@@ -1,4 +1,5 @@
 pub mod config;
+pub mod db;
 pub mod models;
 pub mod services;
 pub mod startup;
@@ -7,19 +8,46 @@ async fn hello_world() -> impl Responder {
     HttpResponse::Ok().body("HELLO")
 }
 use actix_web::{
-    web::{self},
+    web::{self, Data},
     App, HttpResponse, HttpServer, Responder,
 };
+
+use mongodb::bson::raw::Error;
+
+use db::mongodb_repository::MongoDB;
 use services::{login_service, register_service};
 use startup::startup;
+
+async fn init_db() -> Result<Data<MongoDB>, Error> {
+    let db = MongoDB::init().await.unwrap();
+    Ok(Data::new(db))
+}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let (webauthn, reg_store, login_store) = startup();
 
+    let db_data: Result<Data<MongoDB>, Error> = init_db().await;
+
+    let db_data = match db_data {
+        Ok(data) => {
+            println!("Successfully connected to database.");
+            data
+        }
+        Err(_) => {
+            println!("Failed to connect to the database.");
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Database connection failed",
+            ));
+        }
+    };
+
     println!("Listening on: http://0.0.0.0:8080");
+
     HttpServer::new(move || {
         App::new()
+            .app_data(db_data.clone())
             .app_data(reg_store.clone())
             .app_data(webauthn.clone())
             .app_data(login_store.clone())

@@ -19,7 +19,6 @@ pub struct AppConfig {
     pub webauthn_rp_name: String,
 }
 
-// Default configuration for development
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
@@ -33,16 +32,10 @@ impl Default for AppConfig {
     }
 }
 
-/**
-Type alias for Errors that implement [actix_web::ResponseError] through [Error]
-*/
 pub type AppResult<T> = Result<T, Error>;
 
-/**
-Unified errors for simpler Responses
-*/
 #[derive(Debug, Error)]
-pub(crate) enum Error {
+pub enum Error {
     #[error("Unknown webauthn error")]
     Unknown(WebauthnError),
     #[error("Corrupt session")]
@@ -55,6 +48,8 @@ pub(crate) enum Error {
     BadRequest(#[from] WebauthnError),
     #[error("User not found")]
     UserNotFound,
+    #[error("User already registered")]
+    UserAlreadyRegistered,
     #[error("User has no credentials")]
     UserHasNoCredentials,
 }

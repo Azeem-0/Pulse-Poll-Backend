@@ -1,12 +1,12 @@
 use std::{env, error::Error};
 
 use dotenv::dotenv;
-use mongodb::{Client, Collection};
+use mongodb::Client;
 
-use crate::models::user_model::User;
+use super::user_repository::UserRepository;
 
 pub struct MongoDB {
-    pub user_collection: Collection<User>,
+    pub user_repository: UserRepository,
 }
 
 impl MongoDB {
@@ -20,6 +20,8 @@ impl MongoDB {
 
         let user_collection = database.collection("user");
 
-        Ok(MongoDB { user_collection })
+        let user_repository = UserRepository::init(user_collection).unwrap();
+
+        Ok(MongoDB { user_repository })
     }
 }

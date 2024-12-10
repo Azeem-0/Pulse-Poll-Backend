@@ -1,13 +1,21 @@
+use std::f64::consts::E;
+
 use actix_web::{
     post,
     web::{self, Data, Json},
     HttpResponse,
 };
 
-use crate::config::config::{AppResult, Error, RegistrationStateStore};
+use crate::models::user_model::User;
+use crate::{
+    config::config::{AppResult, Error, RegistrationStateStore},
+    db::mongodb_repository::MongoDB,
+};
 use log::info;
 use uuid::Uuid;
-use webauthn_rs::prelude::{CreationChallengeResponse, RegisterPublicKeyCredential, Webauthn};
+use webauthn_rs::prelude::{
+    CreationChallengeResponse, RegisterPublicKeyCredential, Webauthn, WebauthnError,
+};
 
 use crate::models::auth_model::RegisterRequest;
 
@@ -16,8 +24,15 @@ pub async fn register_start(
     data: web::Json<RegisterRequest>,
     webauthn: Data<Webauthn>,
     reg_store: Data<RegistrationStateStore>,
+    db: Data<MongoDB>,
 ) -> AppResult<Json<CreationChallengeResponse>> {
     let username = &data.username;
+
+    let user = db.user_repository.find_user(username).await.unwrap();
+
+    if let Some(_) = user {
+        return Err(Error::UserAlreadyRegistered);
+    }
 
     eprintln!("User Name : {}", username);
 
@@ -49,6 +64,7 @@ pub async fn register_finish(
     req: web::Json<RegisterPublicKeyCredential>,
     webauthn: Data<Webauthn>,
     reg_store: Data<RegistrationStateStore>,
+    db: Data<MongoDB>,
 ) -> AppResult<HttpResponse> {
     let mut session = reg_store.lock().unwrap();
 
@@ -68,7 +84,15 @@ pub async fn register_finish(
             Error::BadRequest(e)
         })?;
 
-    // here we have to store the user data into database..
+    let user = User::init(&username, &sk);
+
+    match db.user_repository.insert_user(&user).await {
+        Ok(_) => println!("Inserted successfully"),
+        Err(err) => {
+            println!("Failed to insert into database");
+            return Err(err);
+        }
+    }
 
     eprintln!("{} {} {:?} {:?}", username, user_unique_id, reg_state, sk);
 
