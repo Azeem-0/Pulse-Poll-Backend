@@ -1,4 +1,4 @@
-use std::{env, error::Error};
+use std::error::Error;
 
 use dotenv::dotenv;
 use mongodb::Client;
@@ -10,13 +10,14 @@ pub struct MongoDB {
 }
 
 impl MongoDB {
-    pub async fn init() -> Result<Self, Box<dyn Error>> {
+    pub async fn init(mongo_uri: &str, database_name: &str) -> Result<Self, Box<dyn Error>> {
         dotenv().ok();
-        let database_uri = env::var("DATABASE_URL").unwrap();
 
-        let client = Client::with_uri_str(database_uri).await.unwrap();
+        let client = Client::with_uri_str(mongo_uri)
+            .await
+            .map_err(|e| Box::new(e))?;
 
-        let database = client.database("passkey");
+        let database = client.database(database_name);
 
         let user_collection = database.collection("user");
 

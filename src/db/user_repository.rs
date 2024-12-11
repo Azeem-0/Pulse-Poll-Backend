@@ -1,13 +1,12 @@
+use crate::config::user_config::Error;
+
 use mongodb::{
     bson::doc,
     results::{DeleteResult, InsertOneResult},
     Collection,
 };
 
-use crate::{
-    config::config::{AppResult, Error},
-    models::user_model::{User, UserLoginState, UserRegistrationState},
-};
+use crate::models::user_model::{User, UserLoginState, UserRegistrationState};
 
 pub struct UserRepository {
     pub user_collection: Collection<User>,
@@ -20,7 +19,7 @@ impl UserRepository {
         user_collection: Collection<User>,
         user_reg_state_collection: Collection<UserRegistrationState>,
         user_login_state_collection: Collection<UserLoginState>,
-    ) -> AppResult<Self> {
+    ) -> Result<Self, Error> {
         Ok(UserRepository {
             user_collection,
             user_login_state_collection,
@@ -28,110 +27,84 @@ impl UserRepository {
         })
     }
 
-    pub async fn insert_user(&self, user: &User) -> AppResult<InsertOneResult> {
-        let insert_details = self
-            .user_collection
+    pub async fn insert_user(&self, user: &User) -> Result<InsertOneResult, Error> {
+        self.user_collection
             .insert_one(user, None)
             .await
-            .expect("Failed to insert user data");
-        Ok(insert_details)
+            .map_err(|e| Error::MongoError(e))
     }
 
-    pub async fn find_user(&self, username: &String) -> AppResult<Option<User>> {
+    pub async fn find_user(&self, username: &str) -> Result<Option<User>, Error> {
         let filter = doc! { "username": username };
-        let user = self
-            .user_collection
+        self.user_collection
             .find_one(filter, None)
             .await
-            .expect("Failed to fetch user data.");
-
-        Ok(user)
+            .map_err(|e| Error::MongoError(e))
     }
 
-    pub async fn get_user_credentials(&self, username: &String) -> AppResult<User> {
-        let user = match self.find_user(username).await.unwrap() {
+    pub async fn get_user_credentials(&self, username: &str) -> Result<User, Error> {
+        let user = match self.find_user(username).await? {
             Some(u) => u,
-            None => {
-                println!("User not found");
-                return Err(Error::UserNotFound);
-            }
+            None => return Err(Error::UserNotFound(username.to_string())),
         };
 
         Ok(user)
     }
 
-    // state management database logic
+    // State management database logic
 
     pub async fn store_reg_state(
         &self,
         reg_state: UserRegistrationState,
-    ) -> AppResult<InsertOneResult> {
-        let insert_details = self
-            .user_reg_state_collection
+    ) -> Result<InsertOneResult, Error> {
+        self.user_reg_state_collection
             .insert_one(reg_state, None)
             .await
-            .expect("Error storing the registration state");
-
-        Ok(insert_details)
+            .map_err(|e| Error::RegistrationStateError(e.to_string()))
     }
 
     pub async fn get_reg_state(
         &self,
-        username: &String,
-    ) -> AppResult<Option<UserRegistrationState>> {
+        username: &str,
+    ) -> Result<Option<UserRegistrationState>, Error> {
         let filter = doc! { "username": username };
-        let reg_state = self
-            .user_reg_state_collection
+        self.user_reg_state_collection
             .find_one(filter, None)
             .await
-            .expect("Faied to retrive user registration state");
-        Ok(reg_state)
+            .map_err(|e| Error::RegistrationStateError(e.to_string()))
     }
 
-    pub async fn delete_reg_state(&self, username: &String) -> AppResult<DeleteResult> {
-        let filter = doc! {"username" : username};
-        let delete_details = self
-            .user_reg_state_collection
+    pub async fn delete_reg_state(&self, username: &str) -> Result<DeleteResult, Error> {
+        let filter = doc! { "username": username };
+        self.user_reg_state_collection
             .delete_one(filter, None)
             .await
-            .expect("Failed to delete user registration state");
-        Ok(delete_details)
+            .map_err(|e| Error::RegistrationStateError(e.to_string()))
     }
 
     pub async fn store_login_state(
         &self,
         login_state: UserLoginState,
-    ) -> AppResult<InsertOneResult> {
-        let insert_details = self
-            .user_login_state_collection
+    ) -> Result<InsertOneResult, Error> {
+        self.user_login_state_collection
             .insert_one(login_state, None)
             .await
-            .expect("Failed to insert login state");
-
-        Ok(insert_details)
+            .map_err(|e| Error::LoginStateError(e.to_string()))
     }
 
-    pub async fn get_login_state(&self, username: &String) -> AppResult<Option<UserLoginState>> {
-        let filter = doc! {"username" : username};
-
-        let login_state = self
-            .user_login_state_collection
+    pub async fn get_login_state(&self, username: &str) -> Result<Option<UserLoginState>, Error> {
+        let filter = doc! { "username": username };
+        self.user_login_state_collection
             .find_one(filter, None)
             .await
-            .expect("failed to retrieve user login state");
-
-        Ok(login_state)
+            .map_err(|e| Error::LoginStateError(e.to_string()))
     }
 
-    pub async fn delete_login_state(&self, username: &String) -> AppResult<DeleteResult> {
-        let filter = doc! {"username":username};
-
-        let delete_details = self
-            .user_login_state_collection
+    pub async fn delete_login_state(&self, username: &str) -> Result<DeleteResult, Error> {
+        let filter = doc! { "username": username };
+        self.user_login_state_collection
             .delete_one(filter, None)
             .await
-            .expect("Failed to delete user login state");
-
-        Ok(delete_details)
+            .map_err(|e| Error::LoginStateError(e.to_string()))
     }
 }
