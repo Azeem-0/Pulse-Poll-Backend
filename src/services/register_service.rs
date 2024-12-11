@@ -1,14 +1,12 @@
-use std::f64::consts::E;
-
 use actix_web::{
     post,
-    web::{self, Data, Json},
+    web::{self, Data, Json, Path},
     HttpResponse,
 };
 
-use crate::models::user_model::User;
+use crate::models::user_model::{RegisterRequest, User, UserRegistrationState};
 use crate::{
-    config::config::{AppResult, Error, RegistrationStateStore},
+    config::config::{AppResult, Error},
     db::mongodb_repository::MongoDB,
 };
 use log::info;
@@ -17,13 +15,10 @@ use webauthn_rs::prelude::{
     CreationChallengeResponse, RegisterPublicKeyCredential, Webauthn, WebauthnError,
 };
 
-use crate::models::auth_model::RegisterRequest;
-
 #[post("register-start")]
 pub async fn register_start(
     data: web::Json<RegisterRequest>,
     webauthn: Data<Webauthn>,
-    reg_store: Data<RegistrationStateStore>,
     db: Data<MongoDB>,
 ) -> AppResult<Json<CreationChallengeResponse>> {
     let username = &data.username;
@@ -36,10 +31,6 @@ pub async fn register_start(
 
     eprintln!("User Name : {}", username);
 
-    let mut session = reg_store.lock().unwrap();
-
-    session.remove("reg_state");
-
     let user_unique_id = Uuid::new_v4();
 
     let (ccr, reg_state) = webauthn
@@ -49,33 +40,53 @@ pub async fn register_start(
             Error::Unknown(e)
         })?;
 
-    session.insert(
-        "reg_state".to_string(),
-        (username.clone(), user_unique_id, reg_state),
-    );
+    let reg_state_value = match serde_json::to_value(&reg_state) {
+        Ok(value) => value,
+        Err(_) => {
+            return Err(Error::UserHasNoCredentials);
+        }
+    };
 
-    eprintln!("{:?}", session);
+    let user_reg_state = UserRegistrationState {
+        user_id: user_unique_id.to_string(),
+        username: username.clone(),
+        state: reg_state_value,
+    };
+
+    db.user_repository
+        .store_reg_state(user_reg_state)
+        .await
+        .unwrap();
 
     Ok(Json(ccr))
 }
 
-#[post("register-finish")]
+#[post("register-finish/{username}")]
 pub async fn register_finish(
     req: web::Json<RegisterPublicKeyCredential>,
     webauthn: Data<Webauthn>,
-    reg_store: Data<RegistrationStateStore>,
+    username: Path<String>,
     db: Data<MongoDB>,
 ) -> AppResult<HttpResponse> {
-    let mut session = reg_store.lock().unwrap();
-
-    let (username, user_unique_id, reg_state) = match &session.get("reg_state") {
-        Some((username, user_unique_id, reg_state)) => {
-            (username.clone(), user_unique_id.clone(), reg_state.clone())
+    let user_reg_state = match db.user_repository.get_reg_state(&username).await.unwrap() {
+        Some(reg_state) => reg_state,
+        None => {
+            return Err(Error::UserNotFound);
         }
-        None => return Err(Error::CorruptSession),
     };
 
-    session.remove("reg_state");
+    let username = user_reg_state.username.clone();
+    let user_unique_id = user_reg_state.username.clone();
+    let state = user_reg_state.state.clone();
+
+    let reg_state = match serde_json::from_value(state) {
+        Ok(reg) => reg,
+        Err(_) => {
+            return Err(Error::UserNotFound);
+        }
+    };
+
+    println!("{:?}", reg_state);
 
     let sk = webauthn
         .finish_passkey_registration(&req, &reg_state)

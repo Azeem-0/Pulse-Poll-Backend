@@ -20,7 +20,15 @@ impl MongoDB {
 
         let user_collection = database.collection("user");
 
-        let user_repository = UserRepository::init(user_collection).unwrap();
+        let user_reg_state_collection = database.collection("regstate");
+        let user_login_state_collection = database.collection("loginstate");
+
+        let user_repository = UserRepository::init(
+            user_collection,
+            user_reg_state_collection,
+            user_login_state_collection,
+        )
+        .unwrap();
 
         Ok(MongoDB { user_repository })
     }

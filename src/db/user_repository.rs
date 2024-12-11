@@ -3,21 +3,31 @@ use webauthn_rs::prelude::Passkey;
 
 use crate::{
     config::config::{AppResult, Error},
-    models::user_model::User,
+    models::user_model::{User, UserLoginState, UserRegistrationState},
 };
 
 pub struct UserRepository {
-    col: Collection<User>,
+    pub user_collection: Collection<User>,
+    pub user_reg_state_collection: Collection<UserRegistrationState>,
+    pub user_login_state_collection: Collection<UserLoginState>,
 }
 
 impl UserRepository {
-    pub fn init(col: Collection<User>) -> AppResult<Self> {
-        Ok(UserRepository { col })
+    pub fn init(
+        user_collection: Collection<User>,
+        user_reg_state_collection: Collection<UserRegistrationState>,
+        user_login_state_collection: Collection<UserLoginState>,
+    ) -> AppResult<Self> {
+        Ok(UserRepository {
+            user_collection,
+            user_login_state_collection,
+            user_reg_state_collection,
+        })
     }
 
     pub async fn insert_user(&self, user: &User) -> AppResult<InsertOneResult> {
         let insert_details = self
-            .col
+            .user_collection
             .insert_one(user, None)
             .await
             .expect("Failed to insert user data");
@@ -27,7 +37,7 @@ impl UserRepository {
     pub async fn find_user(&self, username: &String) -> AppResult<Option<User>> {
         let filter = doc! { "username": username };
         let user = self
-            .col
+            .user_collection
             .find_one(filter, None)
             .await
             .expect("Failed to fetch user data.");
@@ -35,7 +45,7 @@ impl UserRepository {
         Ok(user)
     }
 
-    pub async fn get_user_public_key(&self, username: &String) -> AppResult<Passkey> {
+    pub async fn get_user_public_key(&self, username: &String) -> AppResult<serde_json::Value> {
         let user = match self.find_user(username).await.unwrap() {
             Some(u) => u,
             None => {
@@ -44,6 +54,59 @@ impl UserRepository {
             }
         };
 
-        Ok(user.public_key)
+        Ok(user.sk)
+    }
+
+    // state management database logic
+
+    pub async fn store_reg_state(
+        &self,
+        reg_state: UserRegistrationState,
+    ) -> AppResult<InsertOneResult> {
+        let insert_details = self
+            .user_reg_state_collection
+            .insert_one(reg_state, None)
+            .await
+            .expect("Error storing the registration state");
+
+        Ok(insert_details)
+    }
+
+    pub async fn get_reg_state(
+        &self,
+        username: &String,
+    ) -> AppResult<Option<UserRegistrationState>> {
+        let filter = doc! { "username": username };
+        let reg_state = self
+            .user_reg_state_collection
+            .find_one(filter, None)
+            .await
+            .expect("Faied to retrive user registration state");
+        Ok(reg_state)
+    }
+
+    pub async fn store_login_state(
+        &self,
+        login_state: UserLoginState,
+    ) -> AppResult<InsertOneResult> {
+        let insert_details = self
+            .user_login_state_collection
+            .insert_one(login_state, None)
+            .await
+            .expect("Failed to insert login state");
+
+        Ok(insert_details)
+    }
+
+    pub async fn get_login_state(&self, username: &String) -> AppResult<Option<UserLoginState>> {
+        let filter = doc! {"username" : username};
+
+        let login_state = self
+            .user_login_state_collection
+            .find_one(filter, None)
+            .await
+            .expect("failed to retrieve user login state");
+
+        Ok(login_state)
     }
 }

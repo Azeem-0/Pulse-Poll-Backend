@@ -5,7 +5,7 @@ use std::{
 
 use actix_session::{SessionGetError, SessionInsertError};
 use actix_web::http::StatusCode;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use thiserror::Error;
 use uuid::Uuid;
 use webauthn_rs::prelude::{PasskeyAuthentication, PasskeyRegistration, WebauthnError};
@@ -59,6 +59,4 @@ impl actix_web::ResponseError for Error {
         StatusCode::INTERNAL_SERVER_ERROR
     }
 }
-
-pub type RegistrationStateStore = Arc<Mutex<HashMap<String, (String, Uuid, PasskeyRegistration)>>>;
 pub type LoginStateStore = Arc<Mutex<HashMap<String, (String, Uuid, PasskeyAuthentication)>>>;

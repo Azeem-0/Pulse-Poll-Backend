@@ -1,5 +1,3 @@
-use std::clone;
-
 use actix_web::{
     post,
     web::{self, Data, Json},
@@ -9,9 +7,9 @@ use log::info;
 use webauthn_rs::{prelude::PublicKeyCredential, Webauthn};
 
 use crate::{
-    config::config::{AppResult, Error, LoginStateStore, RegistrationStateStore},
+    config::config::{AppResult, Error, LoginStateStore},
     db::mongodb_repository::MongoDB,
-    models::auth_model::RegisterRequest,
+    models::user_model::RegisterRequest,
 };
 
 #[post("/login-start")]
