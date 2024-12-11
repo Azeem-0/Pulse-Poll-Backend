@@ -4,32 +4,26 @@ use actix_web::{
     HttpResponse,
 };
 
-use crate::models::user_model::{RegisterRequest, User, UserRegistrationState};
+use crate::models::user_model::{User, UserRegistrationState};
 use crate::{
     config::config::{AppResult, Error},
     db::mongodb_repository::MongoDB,
 };
 use log::info;
 use uuid::Uuid;
-use webauthn_rs::prelude::{
-    CreationChallengeResponse, RegisterPublicKeyCredential, Webauthn, WebauthnError,
-};
+use webauthn_rs::prelude::{CreationChallengeResponse, RegisterPublicKeyCredential, Webauthn};
 
-#[post("register-start")]
+#[post("/start/{username}")]
 pub async fn register_start(
-    data: web::Json<RegisterRequest>,
+    username: Path<String>,
     webauthn: Data<Webauthn>,
     db: Data<MongoDB>,
 ) -> AppResult<Json<CreationChallengeResponse>> {
-    let username = &data.username;
+    let user = db.user_repository.find_user(&username).await.unwrap();
 
-    let user = db.user_repository.find_user(username).await.unwrap();
-
-    if let Some(_) = user {
+    if let Some(_u) = user {
         return Err(Error::UserAlreadyRegistered);
     }
-
-    eprintln!("User Name : {}", username);
 
     let user_unique_id = Uuid::new_v4();
 
@@ -61,7 +55,7 @@ pub async fn register_start(
     Ok(Json(ccr))
 }
 
-#[post("register-finish/{username}")]
+#[post("/finish/{username}")]
 pub async fn register_finish(
     req: web::Json<RegisterPublicKeyCredential>,
     webauthn: Data<Webauthn>,
@@ -74,9 +68,6 @@ pub async fn register_finish(
             return Err(Error::UserNotFound);
         }
     };
-
-    let username = user_reg_state.username.clone();
-    let user_unique_id = user_reg_state.username.clone();
     let state = user_reg_state.state.clone();
 
     let reg_state = match serde_json::from_value(state) {
@@ -85,8 +76,6 @@ pub async fn register_finish(
             return Err(Error::UserNotFound);
         }
     };
-
-    println!("{:?}", reg_state);
 
     let sk = webauthn
         .finish_passkey_registration(&req, &reg_state)
@@ -105,7 +94,10 @@ pub async fn register_finish(
         }
     }
 
-    eprintln!("{} {} {:?} {:?}", username, user_unique_id, reg_state, sk);
+    db.user_repository
+        .delete_reg_state(&username)
+        .await
+        .unwrap();
 
     Ok(HttpResponse::Ok().finish())
 }

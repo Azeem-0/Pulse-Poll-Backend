@@ -1,90 +1,106 @@
 use actix_web::{
     post,
-    web::{self, Data, Json},
+    web::{self, Data, Json, Path},
     HttpResponse,
 };
 use log::info;
-use webauthn_rs::{prelude::PublicKeyCredential, Webauthn};
-
-use crate::{
-    config::config::{AppResult, Error, LoginStateStore},
-    db::mongodb_repository::MongoDB,
-    models::user_model::RegisterRequest,
+use webauthn_rs::{
+    prelude::{Passkey, PublicKeyCredential, RequestChallengeResponse},
+    Webauthn,
 };
 
-#[post("/login-start")]
+use crate::{
+    config::config::{AppResult, Error},
+    db::mongodb_repository::MongoDB,
+    models::user_model::UserLoginState,
+};
+
+#[post("/start/{username}")]
 pub async fn authentication_start(
-    data: web::Json<RegisterRequest>,
+    username: Path<String>,
     webauthn: Data<Webauthn>,
-    login_store: Data<LoginStateStore>,
     db: Data<MongoDB>,
-) -> AppResult<HttpResponse> {
-    let username = &data.username;
-    let mut session = login_store.lock().unwrap();
-
-    session.remove("auth_state");
-
-    // retrieve the user's public key from the database, perform a database operation here.
-
-    let sk = db
+) -> AppResult<Json<RequestChallengeResponse>> {
+    let user_credentials = db
         .user_repository
-        .get_user_public_key(username)
+        .get_user_credentials(&username)
+        .await
+        .map_err(|_| Error::UserNotFound)
+        .unwrap();
+
+    let mut allow_credentials: Vec<Passkey> = Vec::new();
+    match serde_json::from_value(user_credentials.sk) {
+        Ok(val) => {
+            allow_credentials.push(val);
+        }
+        Err(err) => {
+            println!("{:?}", err);
+            return Err(Error::UserNotFound);
+        }
+    };
+
+    let (rcr, auth_state) = webauthn
+        .start_passkey_authentication(&allow_credentials)
+        .map_err(|e| {
+            info!("challenge_authenticate -> {:?}", e);
+            Error::Unknown(e)
+        })?;
+
+    let login_state_value = match serde_json::to_value(&auth_state) {
+        Ok(value) => value,
+        Err(_) => {
+            return Err(Error::UserHasNoCredentials);
+        }
+    };
+
+    let login_state = UserLoginState {
+        username: username.clone(),
+        state: login_state_value,
+    };
+
+    db.user_repository
+        .store_login_state(login_state)
         .await
         .unwrap();
 
-    // let (rcr, auth_state) = webauthn
-    // .start_passkey_authentication(allow_credentials)
-    // .map_err(|e| {
-    //     info!("challenge_authenticate -> {:?}", e);
-    //     Error::Unknown(e)
-    // })?;
-
-    // session.insert("auth_state", (username.clone(),user_unique_id, auth_state))?;
-
-    // Ok(Json(rcr))
-
-    Ok(HttpResponse::Ok().json("Authentication Api for the polling application."))
+    Ok(Json(rcr))
 }
 
-#[post("/login-finish")]
+#[post("/finish/{username}")]
 pub async fn authentication_finish(
     auth: Json<PublicKeyCredential>,
     webauthn: Data<Webauthn>,
-    login_store: Data<LoginStateStore>,
+    username: Path<String>,
+    db: Data<MongoDB>,
 ) -> AppResult<HttpResponse> {
-    let mut session = login_store.lock().unwrap();
-
-    // let (username, user_unique_id, auth_state) = session.get("auth_state").unwrap();
-
-    let (username, user_unique_id, auth_state) = match &session.get("auth_state") {
-        Some((username, user_unique_id, auth_state)) => {
-            (username.clone(), user_unique_id.clone(), auth_state.clone())
+    let user_login_state = match db.user_repository.get_login_state(&username).await.unwrap() {
+        Some(reg_state) => reg_state,
+        None => {
+            return Err(Error::UserNotFound);
         }
-        None => return Err(Error::CorruptSession),
     };
 
-    session.remove("auth_state");
+    let username = user_login_state.username.clone();
+    let state = user_login_state.state.clone();
 
-    let auth_result = webauthn
+    let auth_state = match serde_json::from_value(state) {
+        Ok(reg) => reg,
+        Err(_) => {
+            return Err(Error::UserNotFound);
+        }
+    };
+
+    let _auth_result = webauthn
         .finish_passkey_authentication(&auth, &auth_state)
         .map_err(|e| {
             info!("challenge_register -> {:?}", e);
             Error::BadRequest(e)
         })?;
 
-    // // Update the credential counter, if possible.
-    // users_guard
-    //     .keys
-    //     .get_mut(&user_unique_id)
-    //     .map(|keys| {
-    //         keys.iter_mut().for_each(|sk| {
-    //             // This will update the credential if it's the matching
-    //             // one. Otherwise it's ignored. That is why it is safe to
-    //             // iterate this over the full list.
-    //             sk.update_credential(&auth_result);
-    //         })
-    //     })
-    //     .ok_or(Error::UserHasNoCredentials)?;
+    db.user_repository
+        .delete_login_state(&username)
+        .await
+        .unwrap();
 
     info!("Authentication Successful!");
     Ok(HttpResponse::Ok().finish())

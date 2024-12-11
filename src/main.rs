@@ -7,6 +7,7 @@ pub mod startup;
 async fn hello_world() -> impl Responder {
     HttpResponse::Ok().body("HELLO")
 }
+use actix_cors::Cors;
 use actix_web::{
     web::{self, Data},
     App, HttpResponse, HttpServer, Responder,
@@ -25,7 +26,7 @@ async fn init_db() -> Result<Data<MongoDB>, Error> {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let (webauthn, reg_store, login_store) = startup();
+    let (webauthn, login_store) = startup();
 
     let db_data: Result<Data<MongoDB>, Error> = init_db().await;
 
@@ -48,14 +49,20 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(db_data.clone())
-            .app_data(reg_store.clone())
             .app_data(webauthn.clone())
             .app_data(login_store.clone())
             .route("/", web::get().to(hello_world))
             .service(web::scope("/api/auth/register").configure(register_service::init))
             .service(web::scope("/api/auth/login").configure(login_service::init))
+            .wrap(
+                Cors::default()
+                    .allow_any_origin()
+                    .allow_any_method()
+                    .allow_any_header()
+                    .max_age(3600),
+            )
     })
-    .bind("127.0.0.1:3000")?
+    .bind("127.0.0.1:8080")?
     .run()
     .await
 }

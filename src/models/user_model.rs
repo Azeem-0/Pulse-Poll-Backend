@@ -34,6 +34,6 @@ pub struct UserRegistrationState {
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UserLoginState {
-    pub user_id: String,
+    pub username: String,
     pub state: serde_json::Value,
 }

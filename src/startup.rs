@@ -7,13 +7,9 @@ use actix_web::web::Data;
 
 use webauthn_rs::prelude::*;
 
-use crate::config::config::{LoginStateStore, RegistrationStateStore};
+use crate::config::config::LoginStateStore;
 
-pub fn startup() -> (
-    Data<Webauthn>,
-    Data<RegistrationStateStore>,
-    Data<LoginStateStore>,
-) {
+pub fn startup() -> (Data<Webauthn>, Data<LoginStateStore>) {
     let rp_id = "localhost";
 
     let rp_origin = Url::parse("http://localhost:3000").expect("Invalid URL");
@@ -23,8 +19,7 @@ pub fn startup() -> (
 
     let webauthn = Data::new(builder.build().expect("Invalid configuration"));
 
-    let reg_store = Data::new(Arc::new(Mutex::new(HashMap::new())));
     let login_store = Data::new(Arc::new(Mutex::new(HashMap::new())));
 
-    (webauthn, reg_store, login_store)
+    (webauthn, login_store)
 }

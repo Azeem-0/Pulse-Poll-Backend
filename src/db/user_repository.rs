@@ -1,5 +1,8 @@
-use mongodb::{bson::doc, results::InsertOneResult, Collection};
-use webauthn_rs::prelude::Passkey;
+use mongodb::{
+    bson::doc,
+    results::{DeleteResult, InsertOneResult},
+    Collection,
+};
 
 use crate::{
     config::config::{AppResult, Error},
@@ -45,7 +48,7 @@ impl UserRepository {
         Ok(user)
     }
 
-    pub async fn get_user_public_key(&self, username: &String) -> AppResult<serde_json::Value> {
+    pub async fn get_user_credentials(&self, username: &String) -> AppResult<User> {
         let user = match self.find_user(username).await.unwrap() {
             Some(u) => u,
             None => {
@@ -54,7 +57,7 @@ impl UserRepository {
             }
         };
 
-        Ok(user.sk)
+        Ok(user)
     }
 
     // state management database logic
@@ -85,6 +88,16 @@ impl UserRepository {
         Ok(reg_state)
     }
 
+    pub async fn delete_reg_state(&self, username: &String) -> AppResult<DeleteResult> {
+        let filter = doc! {"username" : username};
+        let delete_details = self
+            .user_reg_state_collection
+            .delete_one(filter, None)
+            .await
+            .expect("Failed to delete user registration state");
+        Ok(delete_details)
+    }
+
     pub async fn store_login_state(
         &self,
         login_state: UserLoginState,
@@ -108,5 +121,17 @@ impl UserRepository {
             .expect("failed to retrieve user login state");
 
         Ok(login_state)
+    }
+
+    pub async fn delete_login_state(&self, username: &String) -> AppResult<DeleteResult> {
+        let filter = doc! {"username":username};
+
+        let delete_details = self
+            .user_login_state_collection
+            .delete_one(filter, None)
+            .await
+            .expect("Failed to delete user login state");
+
+        Ok(delete_details)
     }
 }
