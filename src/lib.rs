@@ -36,7 +36,6 @@ pub async fn init_server(db_data: Data<MongoDB>) -> std::io::Result<()> {
             .app_data(webauthn.clone())
             .service(web::scope("/api/auth").configure(auth_service::init))
             .service(web::scope("/api/r").configure(temp_service::init))
-            // .wrap_fn(jwt_middleware)
             .route("/", web::get().to(home_route))
             .wrap(
                 Cors::default()
