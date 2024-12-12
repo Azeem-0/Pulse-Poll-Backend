@@ -2,6 +2,7 @@ use crate::models::user_model::{User, UserRegistrationState};
 use crate::utils::jwt_token_generation::Claims;
 use crate::{db::mongodb_repository::MongoDB, models::user_model::UserLoginState};
 use actix_web::cookie::Cookie;
+use actix_web::Responder;
 use uuid::Uuid;
 use webauthn_rs::prelude::{Passkey, PublicKeyCredential, RegisterPublicKeyCredential, Webauthn};
 
@@ -13,11 +14,11 @@ use actix_web::{
 use log::info;
 
 #[post("/register/start/{username}")]
-pub async fn register_start(
+async fn register_start(
     username: Path<String>,
     webauthn: Data<Webauthn>,
     db: Data<MongoDB>,
-) -> HttpResponse {
+) -> impl Responder {
     match db.user_repository.find_user(&username).await {
         Ok(Some(_)) => {
             return HttpResponse::Conflict().body("User is already registered.");
@@ -63,12 +64,12 @@ pub async fn register_start(
 }
 
 #[post("/register/finish/{username}")]
-pub async fn register_finish(
+async fn register_finish(
     req: web::Json<RegisterPublicKeyCredential>,
     webauthn: Data<Webauthn>,
     username: Path<String>,
     db: Data<MongoDB>,
-) -> HttpResponse {
+) -> impl Responder {
     let user_reg_state = match db.user_repository.get_reg_state(&username).await {
         Ok(Some(reg_state)) => reg_state,
         Ok(None) => {
@@ -113,11 +114,11 @@ pub async fn register_finish(
 }
 
 #[post("/login/start/{username}")]
-pub async fn authentication_start(
+async fn authentication_start(
     username: Path<String>,
     webauthn: Data<Webauthn>,
     db: Data<MongoDB>,
-) -> HttpResponse {
+) -> impl Responder {
     let user_credentials = match db.user_repository.get_user_credentials(&username).await {
         Ok(credentials) => credentials,
         Err(_) => {
@@ -172,12 +173,12 @@ pub async fn authentication_start(
 }
 
 #[post("/login/finish/{username}")]
-pub async fn authentication_finish(
+async fn authentication_finish(
     auth: Json<PublicKeyCredential>,
     webauthn: Data<Webauthn>,
     username: Path<String>,
     db: Data<MongoDB>,
-) -> HttpResponse {
+) -> impl Responder {
     let user_login_state = match db.user_repository.get_login_state(&username).await {
         Ok(Some(reg_state)) => reg_state,
         Ok(None) => {

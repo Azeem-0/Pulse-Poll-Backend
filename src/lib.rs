@@ -16,7 +16,7 @@ use config::config::AppConfig;
 use mongodb::bson::raw::Error;
 
 use db::mongodb_repository::MongoDB;
-use services::{auth_service, temp_service};
+use services::{auth_service, poll_service, temp_service};
 use startup::startup;
 
 pub async fn home_route() -> HttpResponse {
@@ -35,7 +35,8 @@ pub async fn init_server(db_data: Data<MongoDB>) -> std::io::Result<()> {
             .app_data(db_data.clone())
             .app_data(webauthn.clone())
             .service(web::scope("/api/auth").configure(auth_service::init))
-            .service(web::scope("/api/r").configure(temp_service::init))
+            // .service(web::scope("/api/r").configure(temp_service::init))
+            .service(web::scope("/api").configure(poll_service::init))
             .route("/", web::get().to(home_route))
             .wrap(
                 Cors::default()

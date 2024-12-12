@@ -3,10 +3,14 @@ use std::error::Error;
 use dotenv::dotenv;
 use mongodb::Client;
 
-use super::user_repository::UserRepository;
+use super::{
+    poll_repository::{self, PollRepository},
+    user_repository::UserRepository,
+};
 
 pub struct MongoDB {
     pub user_repository: UserRepository,
+    pub poll_repository: PollRepository,
 }
 
 impl MongoDB {
@@ -20,7 +24,7 @@ impl MongoDB {
         let database = client.database(database_name);
 
         let user_collection = database.collection("user");
-
+        let poll_collection = database.collection("poll");
         let user_reg_state_collection = database.collection("regstate");
         let user_login_state_collection = database.collection("loginstate");
 
@@ -31,6 +35,11 @@ impl MongoDB {
         )
         .unwrap();
 
-        Ok(MongoDB { user_repository })
+        let poll_repository = PollRepository::init(poll_collection).unwrap();
+
+        Ok(MongoDB {
+            user_repository,
+            poll_repository,
+        })
     }
 }
