@@ -1,5 +1,7 @@
 use crate::models::user_model::{User, UserRegistrationState};
+use crate::utils::jwt_token_generation::Claims;
 use crate::{db::mongodb_repository::MongoDB, models::user_model::UserLoginState};
+use actix_web::cookie::Cookie;
 use uuid::Uuid;
 use webauthn_rs::prelude::{Passkey, PublicKeyCredential, RegisterPublicKeyCredential, Webauthn};
 
@@ -224,8 +226,20 @@ pub async fn authentication_finish(
         return HttpResponse::InternalServerError().body("Failed to clean up login state.");
     }
 
+    let token = Claims::generate_token(&username).unwrap();
+
+    let cookie = Cookie::build("token", token)
+        .path("/")
+        .secure(true)
+        .http_only(true)
+        .same_site(actix_web::cookie::SameSite::None)
+        .finish();
+
     info!("Authentication successful for user: {}", username);
-    HttpResponse::Ok().finish()
+
+    HttpResponse::Ok()
+        .cookie(cookie)
+        .body("Logged in successfully.")
 }
 
 pub fn init(config: &mut web::ServiceConfig) -> () {

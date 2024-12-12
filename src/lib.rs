@@ -1,8 +1,10 @@
 pub mod config;
 pub mod db;
+pub mod middlewares;
 pub mod models;
 pub mod services;
 pub mod startup;
+pub mod utils;
 
 use actix_cors::Cors;
 use actix_web::{
@@ -14,7 +16,7 @@ use config::config::AppConfig;
 use mongodb::bson::raw::Error;
 
 use db::mongodb_repository::MongoDB;
-use services::auth_service;
+use services::{auth_service, temp_service};
 use startup::startup;
 
 pub async fn home_route() -> HttpResponse {
@@ -32,14 +34,16 @@ pub async fn init_server(db_data: Data<MongoDB>) -> std::io::Result<()> {
         App::new()
             .app_data(db_data.clone())
             .app_data(webauthn.clone())
-            .route("/", web::get().to(home_route))
             .service(web::scope("/api/auth").configure(auth_service::init))
+            .service(web::scope("/api/r").configure(temp_service::init))
+            // .wrap_fn(jwt_middleware)
+            .route("/", web::get().to(home_route))
             .wrap(
                 Cors::default()
                     .allow_any_origin()
                     .allow_any_method()
                     .allow_any_header()
-                    .max_age(3600),
+                    .supports_credentials(),
             )
     })
     .bind("127.0.0.1:8080")?
