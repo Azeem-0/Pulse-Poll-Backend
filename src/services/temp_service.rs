@@ -1,16 +1,39 @@
-use actix_web::{web, HttpResponse};
+use actix_web::{
+    get, post,
+    web::{self, Data},
+    HttpResponse, Responder,
+};
+use std::sync::Mutex;
 
-use crate::middlewares::jwt_middleware::jwt_middleware;
+use crate::{middlewares::jwt_middleware::jwt_middleware, models::broadcaster_model::Broadcaster};
 
 pub async fn protected_route() -> HttpResponse {
     HttpResponse::Ok().body("Protected data")
 }
+
+#[get("/create-client")]
+async fn create_client(broadcaster: Data<Mutex<Broadcaster>>) -> impl Responder {
+    let mut broadcaster = broadcaster.lock().unwrap();
+    let client = broadcaster.new_client();
+
+    HttpResponse::Ok()
+        .content_type("text/event-stream")
+        .streaming(client)
+}
+
+#[post("/send")]
+async fn send_message(
+    broadcaster: Data<Mutex<Broadcaster>>,
+    message: web::Json<String>,
+) -> impl Responder {
+    broadcaster
+        .lock()
+        .unwrap()
+        .send("This is coming from backend.");
+    HttpResponse::Ok().body("Message sent")
+}
 pub fn init(config: &mut web::ServiceConfig) -> () {
-    config.service(
-        web::scope("/route")
-            .wrap(actix_web::middleware::from_fn(jwt_middleware))
-            .route("/protected", web::get().to(protected_route)),
-    );
+    config.service(create_client).service(send_message);
 
     ()
 }

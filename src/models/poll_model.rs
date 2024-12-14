@@ -28,3 +28,22 @@ pub struct VoteHistory {
     pub username: String,
     pub option_id: String,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PollResults {
+    poll_id: String,
+    title: String,
+    options: Vec<ResultsOptionItem>,
+    total_votes: u32,
+    time_elapsed: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResultsOptionItem {
+    option_id: String,
+    text: String,
+    votes: u32,
+    percentage: u32,
+}

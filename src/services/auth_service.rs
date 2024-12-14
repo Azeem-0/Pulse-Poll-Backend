@@ -1,7 +1,8 @@
 use crate::models::user_model::{User, UserRegistrationState};
 use crate::utils::jwt_token_generation::Claims;
 use crate::{db::mongodb_repository::MongoDB, models::user_model::UserLoginState};
-use actix_web::cookie::Cookie;
+use actix_web::cookie::time::Duration;
+use actix_web::cookie::{Cookie, SameSite};
 use actix_web::Responder;
 use uuid::Uuid;
 use webauthn_rs::prelude::{Passkey, PublicKeyCredential, RegisterPublicKeyCredential, Webauthn};
@@ -231,9 +232,10 @@ async fn authentication_finish(
 
     let cookie = Cookie::build("token", token)
         .path("/")
-        .secure(true)
         .http_only(true)
+        .max_age(Duration::hours(1))
         .same_site(actix_web::cookie::SameSite::None)
+        .secure(true)
         .finish();
 
     info!("Authentication successful for user: {}", username);
@@ -243,12 +245,28 @@ async fn authentication_finish(
         .body("Logged in successfully.")
 }
 
+#[post("/logout")]
+async fn logout() -> impl Responder {
+    let cookie = Cookie::build("token", "")
+        .path("/")
+        .http_only(true)
+        .same_site(SameSite::None)
+        .max_age(Duration::seconds(-1))
+        .secure(true)
+        .finish();
+
+    HttpResponse::Ok()
+        .cookie(cookie)
+        .body("Logged out successfully")
+}
+
 pub fn init(config: &mut web::ServiceConfig) -> () {
     config
         .service(register_start)
         .service(register_finish)
         .service(authentication_start)
-        .service(authentication_finish);
+        .service(authentication_finish)
+        .service(logout);
 
     ()
 }

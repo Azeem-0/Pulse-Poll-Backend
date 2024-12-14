@@ -15,7 +15,7 @@ impl PollRepository {
         Ok(PollRepository { poll_collection })
     }
 
-    pub async fn create_poll(&self, poll: Poll) -> Result<InsertOneResult, PollError> {
+    pub async fn create_poll(&self, poll: &Poll) -> Result<InsertOneResult, PollError> {
         self.poll_collection
             .insert_one(poll, None)
             .await
@@ -132,7 +132,7 @@ impl PollRepository {
             if let Some(vote_history) = previous_vote {
                 let previous_option_id = &vote_history.option_id;
 
-                if (previous_option_id == new_option_id) {
+                if previous_option_id == new_option_id {
                     return Err(PollError::AlreadyVotedError(
                         "Already voted to the option in the poll.".to_string(),
                     ));

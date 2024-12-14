@@ -13,6 +13,7 @@ use actix_web::{
 };
 
 use config::config::AppConfig;
+use models::broadcaster_model::Broadcaster;
 use mongodb::bson::raw::Error;
 
 use db::mongodb_repository::MongoDB;
@@ -30,12 +31,15 @@ pub async fn init_db(mongo_uri: &str, database_name: &str) -> Result<Data<MongoD
 
 pub async fn init_server(db_data: Data<MongoDB>) -> std::io::Result<()> {
     let webauthn = startup();
+    let broadcaster = Broadcaster::create();
+
     HttpServer::new(move || {
         App::new()
+            .app_data(broadcaster.clone())
             .app_data(db_data.clone())
             .app_data(webauthn.clone())
             .service(web::scope("/api/auth").configure(auth_service::init))
-            // .service(web::scope("/api/r").configure(temp_service::init))
+            .service(web::scope("/api/socket").configure(temp_service::init))
             .service(web::scope("/api").configure(poll_service::init))
             .route("/", web::get().to(home_route))
             .wrap(
