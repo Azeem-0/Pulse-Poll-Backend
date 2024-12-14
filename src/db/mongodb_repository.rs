@@ -3,10 +3,7 @@ use std::error::Error;
 use dotenv::dotenv;
 use mongodb::Client;
 
-use super::{
-    poll_repository::{self, PollRepository},
-    user_repository::UserRepository,
-};
+use super::{poll_repository::PollRepository, user_repository::UserRepository};
 
 pub struct MongoDB {
     pub user_repository: UserRepository,

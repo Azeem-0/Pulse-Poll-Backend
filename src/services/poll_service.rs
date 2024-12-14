@@ -1,11 +1,10 @@
 use actix_web::{
-    get, post,
-    web::{self, Data, Path},
-    HttpMessage, HttpRequest, HttpResponse, Responder,
+    get,
+    web::{self, Data, Path, Query},
+    HttpResponse, Responder,
 };
 use chrono::Utc;
 use nanoid::nanoid;
-use serde_json::json;
 use std::sync::Mutex;
 
 use crate::{
@@ -13,16 +12,15 @@ use crate::{
     middlewares::jwt_middleware::jwt_middleware,
     models::{
         broadcaster_model::Broadcaster,
-        poll_model::{OptionItem, Poll},
+        poll_model::{OptionItem, Poll, PollQueryParams},
     },
     utils::{
-        jwt_token_generation::Claims,
-        poll_results_utility::{calculate_poll_results, format_duration},
+        poll_results_utility::calculate_poll_results,
         types::{PollCreation, UserNameRequest, VoteOption},
     },
 };
 
-async fn get_poll_utility(db: Data<MongoDB>, id: &str) -> Option<Poll> {
+async fn get_poll_utility(db: &Data<MongoDB>, id: &str) -> Option<Poll> {
     let poll_option = match db.poll_repository.get_poll_by_id(id).await {
         Ok(poll_option) => poll_option,
         Err(_) => {
@@ -47,7 +45,7 @@ async fn get_all_polls(db: Data<MongoDB>) -> impl Responder {
 
 #[get("/polls/{id}")]
 async fn get_poll_by_id(db: Data<MongoDB>, id: Path<String>) -> impl Responder {
-    let poll = match get_poll_utility(db, &id).await {
+    let poll = match get_poll_utility(&db, &id).await {
         Some(poll) => poll,
         None => {
             return HttpResponse::Ok().body("No poll found with given id.");
@@ -57,7 +55,52 @@ async fn get_poll_by_id(db: Data<MongoDB>, id: Path<String>) -> impl Responder {
     HttpResponse::Ok().json(poll)
 }
 
-// #[post("/polls")]
+#[get("/polls/{id}/results")]
+async fn fetch_results_by_id(
+    db: Data<MongoDB>,
+    id: Path<String>,
+    broadcaster: Data<Mutex<Broadcaster>>,
+    query: Query<PollQueryParams>,
+) -> impl Responder {
+    let params = query.into_inner();
+
+    let poll_id = id.into_inner();
+
+    match db.poll_repository.get_poll_by_id(&poll_id).await {
+        Ok(Some(poll)) => {
+            if let Some(close) = params.closed {
+                if close && !poll.is_active || !close && poll.is_active {
+                    return HttpResponse::BadRequest().body(
+                        "Query parameters mismatch, poll status is not specified correctly.",
+                    );
+                }
+            }
+
+            if let Some(live) = params.live {
+                if live && !poll.is_active || !live && poll.is_active {
+                    return HttpResponse::NotImplemented().body(
+                        "Query parameters mismatch, poll status is not specified correctly.",
+                    );
+                }
+            }
+
+            if let Some(creator_id) = params.creator {
+                if poll.username != creator_id {
+                    return HttpResponse::Forbidden().body(
+                        "Query parameters mismatch, provided creator is not owner of this poll.",
+                    );
+                }
+            }
+
+            let response = calculate_poll_results(&poll);
+            broadcaster.lock().unwrap().send_poll_results(&response);
+            HttpResponse::Ok().json(response)
+        }
+        Ok(None) => HttpResponse::NotFound().body("No poll found with the given ID."),
+        Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
+    }
+}
+
 async fn create_new_poll(db: Data<MongoDB>, data: web::Json<PollCreation>) -> impl Responder {
     let poll_id = nanoid!(10);
 
@@ -102,6 +145,17 @@ async fn cast_vote_to_poll(
     data: web::Json<VoteOption>,
     broadcaster: Data<Mutex<Broadcaster>>,
 ) -> impl Responder {
+    let poll = match get_poll_utility(&db, &id).await {
+        Some(poll) => poll,
+        None => {
+            return HttpResponse::Ok().body("Internal server error.");
+        }
+    };
+
+    if poll.is_active == false {
+        return HttpResponse::Conflict().body("Cannot vote to a closed poll");
+    }
+
     let username = &data.username;
 
     let option_id = &data.option_id;
@@ -125,8 +179,7 @@ async fn cast_vote_to_poll(
             .change_vote_in_poll_by_id(&id, option_id, username)
             .await
         {
-            return HttpResponse::InternalServerError()
-                .body(format!("Error changing vote: {}", err));
+            return HttpResponse::InternalServerError().body(format!("{}", err));
         }
         message = "Successfully changed your option.";
     } else {
@@ -141,7 +194,7 @@ async fn cast_vote_to_poll(
         message = "Successfully voted for the option."
     }
 
-    let poll = match get_poll_utility(db, &id).await {
+    let poll = match get_poll_utility(&db, &id).await {
         Some(poll) => poll,
         None => {
             return HttpResponse::Ok().body(message);
@@ -150,7 +203,7 @@ async fn cast_vote_to_poll(
 
     broadcaster.lock().unwrap().send_updated_poll(&poll);
     let response = calculate_poll_results(&poll);
-    broadcaster.lock().unwrap().send_poll_results(response);
+    broadcaster.lock().unwrap().send_poll_results(&response);
     HttpResponse::Ok().body("Successfully voted to the poll.")
 }
 
@@ -165,7 +218,7 @@ async fn close_poll_by_id(
         return HttpResponse::InternalServerError().body(format!("Error closing poll : {}", err));
     }
 
-    let poll = match get_poll_utility(db, &id).await {
+    let poll = match get_poll_utility(&db, &id).await {
         Some(poll) => poll,
         None => {
             return HttpResponse::Ok().body("No poll found with given id.");
@@ -174,7 +227,7 @@ async fn close_poll_by_id(
 
     broadcaster.lock().unwrap().send_updated_poll(&poll);
     let response = calculate_poll_results(&poll);
-    broadcaster.lock().unwrap().send_poll_results(response);
+    broadcaster.lock().unwrap().send_poll_results(&response);
     HttpResponse::Ok().body("Closed poll successfully.")
 }
 
@@ -190,7 +243,7 @@ async fn reset_votes_by_id(
         return HttpResponse::InternalServerError().body(format!("Error resetting poll : {}", err));
     }
 
-    let poll = match get_poll_utility(db, &id).await {
+    let poll = match get_poll_utility(&db, &id).await {
         Some(poll) => poll,
         None => {
             return HttpResponse::Ok().body("No poll found with given id.");
@@ -199,23 +252,9 @@ async fn reset_votes_by_id(
 
     broadcaster.lock().unwrap().send_updated_poll(&poll);
     let response = calculate_poll_results(&poll);
-    broadcaster.lock().unwrap().send_poll_results(response);
+    broadcaster.lock().unwrap().send_poll_results(&response);
 
     HttpResponse::Ok().body("Poll reset successfully.")
-}
-
-#[get("/polls/{id}/results")]
-async fn fetch_results_by_id(db: Data<MongoDB>, id: Path<String>) -> impl Responder {
-    let poll_id = id.into_inner();
-
-    match db.poll_repository.get_poll_by_id(&poll_id).await {
-        Ok(Some(poll)) => {
-            let response = calculate_poll_results(&poll);
-            HttpResponse::Ok().json(response)
-        }
-        Ok(None) => HttpResponse::NotFound().body("No poll found with the given ID."),
-        Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
-    }
 }
 
 pub fn init(config: &mut web::ServiceConfig) -> () {

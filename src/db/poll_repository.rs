@@ -1,8 +1,8 @@
-use futures::{StreamExt, TryStreamExt};
+use futures::TryStreamExt;
 use mongodb::bson::doc;
 use mongodb::options::UpdateOptions;
 use mongodb::results::{DeleteResult, InsertOneResult, UpdateResult};
-use mongodb::{Collection, Cursor};
+use mongodb::Collection;
 
 use crate::config::poll_config::PollError;
 use crate::models::poll_model::Poll;

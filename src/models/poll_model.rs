@@ -47,3 +47,10 @@ pub struct ResultsOptionItem {
     votes: u32,
     percentage: u32,
 }
+
+#[derive(Deserialize, Debug)]
+pub struct PollQueryParams {
+    pub live: Option<bool>,
+    pub closed: Option<bool>,
+    pub creator: Option<String>,
+}

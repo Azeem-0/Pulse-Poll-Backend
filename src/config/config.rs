@@ -17,7 +17,8 @@ impl Default for AppConfig {
         Self {
             mongodb_uri: env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "mongodb://localhost:27017".to_string()),
-            database_name: env::var("DATABASE_NAME").unwrap_or_else(|_| "passkey_auth".to_string()),
+            database_name: env::var("DATABASE_NAME")
+                .unwrap_or_else(|_| "polling_application".to_string()),
             rp_origin_url: env::var("RP_ORIGIN")
                 .unwrap_or_else(|_| "http://localhost:8080".to_string()),
             rp_name: env::var("RP_NAME")

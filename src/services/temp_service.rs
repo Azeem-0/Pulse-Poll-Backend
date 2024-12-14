@@ -5,7 +5,7 @@ use actix_web::{
 };
 use std::sync::Mutex;
 
-use crate::{middlewares::jwt_middleware::jwt_middleware, models::broadcaster_model::Broadcaster};
+use crate::models::broadcaster_model::Broadcaster;
 
 pub async fn protected_route() -> HttpResponse {
     HttpResponse::Ok().body("Protected data")
@@ -22,10 +22,7 @@ async fn create_client(broadcaster: Data<Mutex<Broadcaster>>) -> impl Responder 
 }
 
 #[post("/send")]
-async fn send_message(
-    broadcaster: Data<Mutex<Broadcaster>>,
-    message: web::Json<String>,
-) -> impl Responder {
+async fn send_message(broadcaster: Data<Mutex<Broadcaster>>) -> impl Responder {
     broadcaster
         .lock()
         .unwrap()

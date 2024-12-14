@@ -28,7 +28,7 @@ impl fmt::Display for PollError {
             PollError::PollUpdateError(msg) => write!(f, "Poll update error: {}", msg),
             PollError::GeneralError(msg) => write!(f, "Error: {}", msg),
             PollError::PollDeletionError(msg) => write!(f, "Poll deletion error: {}", msg),
-            PollError::AlreadyVotedError(msg) => write!(f, "Already voted : {}", msg),
+            PollError::AlreadyVotedError(msg) => write!(f, "Conflict : {}", msg),
             PollError::PollUnauthorizedAccess(msg) => write!(f, "Unauthorized Access : {}", msg),
         }
     }

@@ -1,8 +1,7 @@
-use actix_web::error::ErrorInternalServerError;
 use actix_web::web::{Bytes, Data};
-use actix_web::{web, App, Error, HttpResponse, HttpServer, Responder};
+use actix_web::Error;
 
-use futures::stream::{Stream, StreamExt};
+use futures::stream::Stream;
 use serde_json::Value;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::time::{interval, Duration};
@@ -10,7 +9,7 @@ use tokio::time::{interval, Duration};
 use std::pin::Pin;
 use std::sync::Mutex;
 
-use super::poll_model::{Poll, PollResults};
+use super::poll_model::Poll;
 
 pub struct Broadcaster {
     clients: Vec<Sender<Bytes>>,
@@ -19,13 +18,11 @@ pub struct Broadcaster {
 impl Broadcaster {
     pub fn create() -> Data<Mutex<Self>> {
         let me = Data::new(Mutex::new(Broadcaster::new()));
-        let me_clone = me.clone();
-
+        // let me_clone = me.clone();
         // Use tokio spawn for the ping task
         // tokio::spawn(async move {
         //     Broadcaster::spawn_ping(me_clone).await;
         // });
-
         me
     }
 
@@ -83,7 +80,7 @@ impl Broadcaster {
         }
     }
 
-    pub fn send_poll_results(&self, response: Value) {
+    pub fn send_poll_results(&self, response: &Value) {
         let poll_json = response.to_string();
 
         let msg = Bytes::from(format!("event: poll_results\ndata: {}\n\n", poll_json));
@@ -113,14 +110,14 @@ impl Stream for Client {
 }
 
 // // Example route handlers
-async fn create_client(broadcaster: Data<Mutex<Broadcaster>>) -> impl Responder {
-    let mut broadcaster = broadcaster.lock().unwrap();
-    let client = broadcaster.new_client();
+// async fn create_client(broadcaster: Data<Mutex<Broadcaster>>) -> impl Responder {
+//     let mut broadcaster = broadcaster.lock().unwrap();
+//     let client = broadcaster.new_client();
 
-    HttpResponse::Ok()
-        .content_type("text/event-stream")
-        .streaming(client)
-}
+//     HttpResponse::Ok()
+//         .content_type("text/event-stream")
+//         .streaming(client)
+// }
 
 // #[actix_web::main]
 // async fn main() -> std::io::Result<()> {
