@@ -1,3 +1,4 @@
+use crate::middlewares::jwt_middleware::jwt_middleware;
 use crate::models::user_model::{User, UserRegistrationState};
 use crate::utils::jwt_token_generation::Claims;
 use crate::{db::mongodb_repository::MongoDB, models::user_model::UserLoginState};
@@ -212,7 +213,7 @@ async fn authentication_finish(
     let _auth_result = match webauthn.finish_passkey_authentication(&auth, &auth_state) {
         Ok(result) => result,
         Err(err) => {
-            info!(
+            println!(
                 "Authentication challenge failed for user {}: {:?}",
                 username, err
             );

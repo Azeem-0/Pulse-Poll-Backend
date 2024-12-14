@@ -10,7 +10,6 @@ use serde_json::json;
 
 use crate::utils::jwt_token_generation::Claims;
 
-// Simple JWT middleware function
 pub async fn jwt_middleware(
     req: ServiceRequest,
     next: Next<BoxBody>,
@@ -29,8 +28,11 @@ pub async fn jwt_middleware(
         }
     };
 
-    let token = match req.cookie("token") {
-        Some(cookie) => cookie.value().to_string(),
+    let token: String = match req.cookie("token") {
+        Some(cookie) => {
+            let c = cookie.value().to_string();
+            c
+        }
         None => {
             return Ok(req.into_response(
                 HttpResponse::Unauthorized()
