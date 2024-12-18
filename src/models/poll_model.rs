@@ -1,7 +1,8 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Poll {
     pub poll_id: String,
@@ -14,7 +15,7 @@ pub struct Poll {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct OptionItem {
     pub option_id: String,
@@ -22,14 +23,14 @@ pub struct OptionItem {
     pub votes: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct VoteHistory {
     pub username: String,
     pub option_id: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PollResults {
     poll_id: String,
@@ -39,7 +40,7 @@ pub struct PollResults {
     time_elapsed: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ResultsOptionItem {
     option_id: String,
@@ -48,7 +49,7 @@ pub struct ResultsOptionItem {
     percentage: u32,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, ToSchema)]
 pub struct PollQueryParams {
     pub live: Option<bool>,
     pub closed: Option<bool>,

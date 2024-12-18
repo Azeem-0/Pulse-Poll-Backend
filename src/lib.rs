@@ -6,6 +6,10 @@ pub mod services;
 pub mod startup;
 pub mod utils;
 
+use utils::api_docs::ApiDoc;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
+
 use actix_cors::Cors;
 use actix_web::{
     web::{self, Data},
@@ -17,7 +21,7 @@ use models::broadcaster_model::Broadcaster;
 use mongodb::bson::raw::Error;
 
 use db::mongodb_repository::MongoDB;
-use services::{auth_service, poll_service, temp_service};
+use services::{auth_service, poll_service, socket_service};
 use startup::startup;
 
 pub async fn home_route() -> HttpResponse {
@@ -33,13 +37,18 @@ pub async fn init_server(db_data: Data<MongoDB>) -> std::io::Result<()> {
     let webauthn = startup();
     let broadcaster = Broadcaster::create();
 
+    let openapi = ApiDoc::openapi();
+
     HttpServer::new(move || {
         App::new()
             .app_data(broadcaster.clone())
             .app_data(db_data.clone())
             .app_data(webauthn.clone())
+            .service(
+                SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", openapi.clone()),
+            )
             .service(web::scope("/api/auth").configure(auth_service::init))
-            .service(web::scope("/api/socket").configure(temp_service::init))
+            .service(web::scope("/api/socket").configure(socket_service::init))
             .service(web::scope("/api").configure(poll_service::init))
             .route("/", web::get().to(home_route))
             .wrap(
@@ -50,7 +59,7 @@ pub async fn init_server(db_data: Data<MongoDB>) -> std::io::Result<()> {
                     .supports_credentials(),
             )
     })
-    .bind("127.0.0.1:8080")?
+    .bind(("0.0.0.0", 3001))?
     .run()
     .await
 }

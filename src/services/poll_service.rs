@@ -31,6 +31,16 @@ async fn get_poll_utility(db: &Data<MongoDB>, id: &str) -> Option<Poll> {
     return poll_option;
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/",
+    responses(
+        (status = 200, description = "Successfully fetched all polls", body = Vec<Poll>),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Polls",
+    operation_id = "getAllPolls"
+)]
 #[get("/")]
 async fn get_all_polls(db: Data<MongoDB>) -> impl Responder {
     let polls = match db.poll_repository.get_all_polls().await {
@@ -43,6 +53,20 @@ async fn get_all_polls(db: Data<MongoDB>) -> impl Responder {
     HttpResponse::Ok().json(polls)
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/polls/{id}",
+    params(
+        ("id" = String, Path, description = "The unique identifier of the poll")
+    ),
+    responses(
+        (status = 200, description = "Successfully fetched poll details", body = Poll),
+        (status = 404, description = "Poll not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Polls",
+    operation_id = "getPollById"
+)]
 #[get("/polls/{id}")]
 async fn get_poll_by_id(db: Data<MongoDB>, id: Path<String>) -> impl Responder {
     let poll = match get_poll_utility(&db, &id).await {
@@ -55,6 +79,24 @@ async fn get_poll_by_id(db: Data<MongoDB>, id: Path<String>) -> impl Responder {
     HttpResponse::Ok().json(poll)
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/polls/{id}/results",
+    params(
+        ("id" = String, Path, description = "The unique identifier of the poll"),
+        ("live" = Option<bool>, Query, description = "Filter by live status of the poll"),
+        ("closed" = Option<bool>, Query, description = "Filter by closed status of the poll"),
+        ("creator" = Option<String>, Query, description = "Filter by creator username")
+    ),
+    responses(
+        (status = 200, description = "Successfully fetched poll results", body = PollResults),
+        (status = 400, description = "Query parameters mismatch"),
+        (status = 404, description = "Poll not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Polls",
+    operation_id = "getPollResults"
+)]
 #[get("/polls/{id}/results")]
 async fn fetch_results_by_id(
     db: Data<MongoDB>,
@@ -101,6 +143,21 @@ async fn fetch_results_by_id(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/polls/",
+    request_body = PollCreation,
+    responses(
+        (status = 200, description = "Poll created successfully"),
+        (status = 400, description = "Bad request"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Polls",
+    operation_id = "createPoll",
+    security(
+        ("bearerAuth" = [])
+    )
+)]
 async fn create_new_poll(db: Data<MongoDB>, data: web::Json<PollCreation>) -> impl Responder {
     let poll_id = nanoid!(10);
 
@@ -139,6 +196,23 @@ async fn create_new_poll(db: Data<MongoDB>, data: web::Json<PollCreation>) -> im
     HttpResponse::Ok().body("New poll created successfully.")
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/polls/{id}/vote",
+    request_body = VoteOption,
+    responses(
+        (status = 200, description = "Vote cast successfully"),
+        (status = 400, description = "Bad request"),
+        (status = 404, description = "Poll not found"),
+        (status = 409, description = "Poll is closed"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Polls",
+    operation_id = "castVoteToPoll",
+    security(
+        ("bearerAuth" = [])
+    )
+)]
 async fn cast_vote_to_poll(
     db: Data<MongoDB>,
     id: Path<String>,
@@ -207,6 +281,21 @@ async fn cast_vote_to_poll(
     HttpResponse::Ok().body("Successfully voted to the poll.")
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/polls/{id}/close",
+    request_body = UserNameRequest,
+    responses(
+        (status = 200, description = "Poll closed successfully"),
+        (status = 404, description = "Poll not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Polls",
+    operation_id = "closePoll",
+    security(
+        ("bearerAuth" = [])
+    )
+)]
 async fn close_poll_by_id(
     db: Data<MongoDB>,
     id: Path<String>,
@@ -231,6 +320,21 @@ async fn close_poll_by_id(
     HttpResponse::Ok().body("Closed poll successfully.")
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/polls/{id}/reset",
+    request_body = UserNameRequest,
+    responses(
+        (status = 200, description = "Poll reset successfully"),
+        (status = 404, description = "Poll not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Polls",
+    operation_id = "resetPoll",
+    security(
+        ("bearerAuth" = [])
+    )
+)]
 async fn reset_votes_by_id(
     db: Data<MongoDB>,
     id: Path<String>,
