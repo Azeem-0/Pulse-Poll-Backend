@@ -83,4 +83,4 @@ Before setting up the project, make sure you have the following installed:
   ```
 5. **Access the api endpoints as described in the documentation above.**
 
-You can view the documentation of the APIs on ```http://localhost:8080/swagger-ui/.```
+You can view the documentation of the APIs on ```http://localhost:3001/swagger-ui/.```

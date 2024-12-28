@@ -94,6 +94,10 @@ async fn register_finish(
         Ok(passkey) => passkey,
         Err(e) => {
             println!("Error during registration finish -> {:?}", e);
+            if let Err(_) = db.user_repository.delete_reg_state(&username).await {
+                return HttpResponse::InternalServerError()
+                    .body("Error registering user, and failed to clean up registration state.");
+            }
             return HttpResponse::BadRequest()
                 .body("Failed to finish the passkey registration process.");
         }
@@ -216,6 +220,13 @@ async fn authentication_finish(
                 "Authentication challenge failed for user {}: {:?}",
                 username, err
             );
+            if let Err(err) = db.user_repository.delete_login_state(&username).await {
+                info!(
+                    "Authentication Failed , and error deleting login state for user {}: {:?}",
+                    username, err
+                );
+                return HttpResponse::InternalServerError().body("Failed to clean up login state.");
+            }
             return HttpResponse::BadRequest().body("Authentication failed.");
         }
     };
