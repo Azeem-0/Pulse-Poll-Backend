@@ -5,8 +5,6 @@ edition = "2021"
 
 [dependencies]
 actix-web = "4.5.1"
-actix-session = "0.8.0"
-actix-identity = "0.6.0"
 webauthn-rs = { version = "0.5.0", features = ["danger-allow-state-serialisation"] }
 mongodb = "2.8.0"
 serde = { version = "1.0", features = ["derive"] }
