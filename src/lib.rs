@@ -6,6 +6,8 @@ pub mod services;
 pub mod startup;
 pub mod utils;
 
+use std::io;
+
 use utils::api_docs::ApiDoc;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -34,7 +36,13 @@ pub async fn init_db(mongo_uri: &str, database_name: &str) -> Result<Data<MongoD
 }
 
 pub async fn init_server(db_data: Data<MongoDB>) -> std::io::Result<()> {
-    let webauthn = startup();
+    let webauthn = startup().map_err(|err| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("Failed to initialize Webauthn: {}", err),
+        )
+    })?;
+
     let broadcaster = Broadcaster::create();
 
     let openapi = ApiDoc::openapi();
