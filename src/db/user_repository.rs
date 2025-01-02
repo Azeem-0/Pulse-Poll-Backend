@@ -1,8 +1,8 @@
 use crate::config::user_config::Error;
 
 use mongodb::{
-    bson::doc,
-    results::{DeleteResult, InsertOneResult},
+    bson::{doc, to_bson},
+    results::{DeleteResult, InsertOneResult, UpdateResult},
     Collection,
 };
 
@@ -51,16 +51,71 @@ impl UserRepository {
         Ok(user)
     }
 
-    // State management database logic
+    pub async fn store_login_state(
+        &self,
+        login_state: UserLoginState,
+    ) -> Result<UpdateResult, Error> {
+        let filter = doc! {"username": &login_state.username};
+
+        let state_bson = to_bson(&login_state.state)
+            .map_err(|_e| return Error::GeneralError("Failed to Deserialize".to_string()))?;
+
+        let update = doc! {
+            "$set": {
+                "username": &login_state.username,
+                "state": state_bson,
+            }
+        };
+
+        let update_result = self
+            .user_login_state_collection
+            .update_one(
+                filter,
+                update,
+                Some(
+                    mongodb::options::UpdateOptions::builder()
+                        .upsert(true)
+                        .build(),
+                ),
+            )
+            .await
+            .map_err(|e| Error::MongoError(e))?;
+
+        Ok(update_result)
+    }
 
     pub async fn store_reg_state(
         &self,
         reg_state: UserRegistrationState,
-    ) -> Result<InsertOneResult, Error> {
-        self.user_reg_state_collection
-            .insert_one(reg_state, None)
+    ) -> Result<UpdateResult, Error> {
+        let filter = doc! {"username": &reg_state.username};
+
+        let state_bson = to_bson(&reg_state.state)
+            .map_err(|_e| return Error::GeneralError("Failed to Deserialize".to_string()))?;
+
+        let update = doc! {
+            "$set": {
+                "username": &reg_state.username,
+                "userId": &reg_state.user_id,
+                "state": state_bson,
+            }
+        };
+
+        let update_result = self
+            .user_reg_state_collection
+            .update_one(
+                filter,
+                update,
+                Some(
+                    mongodb::options::UpdateOptions::builder()
+                        .upsert(true)
+                        .build(),
+                ),
+            )
             .await
-            .map_err(|e| Error::RegistrationStateError(e.to_string()))
+            .map_err(|e| Error::MongoError(e))?;
+
+        Ok(update_result)
     }
 
     pub async fn get_reg_state(
@@ -80,16 +135,6 @@ impl UserRepository {
             .delete_one(filter, None)
             .await
             .map_err(|e| Error::RegistrationStateError(e.to_string()))
-    }
-
-    pub async fn store_login_state(
-        &self,
-        login_state: UserLoginState,
-    ) -> Result<InsertOneResult, Error> {
-        self.user_login_state_collection
-            .insert_one(login_state, None)
-            .await
-            .map_err(|e| Error::LoginStateError(e.to_string()))
     }
 
     pub async fn get_login_state(&self, username: &str) -> Result<Option<UserLoginState>, Error> {

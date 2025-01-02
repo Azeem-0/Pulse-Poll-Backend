@@ -76,7 +76,8 @@ async fn register_finish(
         Ok(None) => {
             return HttpResponse::Unauthorized().body("Registration state not found for the user.");
         }
-        Err(_) => {
+        Err(err) => {
+            println!("{:?}", err);
             return HttpResponse::InternalServerError()
                 .body("Error while retrieving registration state.");
         }
