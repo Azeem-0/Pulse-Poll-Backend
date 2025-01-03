@@ -40,37 +40,27 @@ jobs:
             DATABASE_NAME=${{ secrets.DATABASE_NAME }}
             JWT_SECRET=${{ secrets.JWT_SECRET }}
             RP_ORIGIN=${{ secrets.RP_ORIGIN }}
-            RP_ID=${{ secrets.RP_ID }}        
+            RP_ID=${{ secrets.RP_ID }}
 
-    - name: Deploy to EC2
-      uses: appleboy/ssh-action@v0.1.9
-      with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ${{ secrets.EC2_USER }}
-        key: ${{ secrets.EC2_PRIVATE_KEY }}
-        script: |
-          # Pull the latest Docker image from Docker Hub
-          docker pull ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPOSITORY_NAME }}:latest
+  deploy: 
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v0.1.9
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          script: |
+            # Pull the latest Docker image from Docker Hub
+            docker pull ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPOSITORY_NAME }}:latest
 
-          # Stop and remove the existing container (if any)
-          docker stop backend || true
-          docker rm backend || true
+            # Stop and remove the existing container (if any)
+            docker stop backend || true
+            docker rm backend || true
 
-          # Run the new container
-          docker run -d --name backend -p 3001:3001 ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPOSITORY_NAME }}:latest
+            # Run the new container
+            docker run -d --name backend -p 3001:3001 ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPOSITORY_NAME }}:latest
     
-    - name: Send success notification to Discord
-      if: success()
-      uses: appleboy/discord-action@master
-      with:
-        webhook_id: ${{ secrets.DISCORD_WEBHOOK_ID }}
-        webhook_token: ${{ secrets.DISCORD_WEBHOOK_TOKEN }}
-        message: "Build and Deployment Successful: The polling app is live on AWS ECS!"
-
-    - name: Send failure notification to Discord
-      if: failure()
-      uses: appleboy/discord-action@master
-      with:
-        webhook_id: ${{ secrets.DISCORD_WEBHOOK_ID }}
-        webhook_token: ${{ secrets.DISCORD_WEBHOOK_TOKEN }}
-        message: "Build or Deployment Failed: Something went wrong with the polling app deployment."
+      
