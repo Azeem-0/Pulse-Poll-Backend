@@ -1,4 +1,4 @@
-name: Build and Deploy to aws ECS
+name: Build and Deploy to aws EC2
 
 on:
   push:
@@ -7,7 +7,22 @@ on:
     types: ["closed"]
 
 jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send notification for new push or merged pull request
+        uses: appleboy/discord-action@master
+        with:
+          webhook_id: ${{ secrets.DISCORD_WEBHOOK_ID }}
+          webhook_token: ${{ secrets.DISCORD_WEBHOOK_TOKEN }}
+          message: |
+            🚀 **Notification** 
+            - Event: `${{ github.event_name }}`
+            - Branch: `${{ github.ref_name }}`
+            - Commit: `${{ github.sha }}`
+            - Triggered by: `${{ github.actor }}`
   build:
+    needs: notify
     runs-on: ubuntu-latest
     steps:
 
@@ -42,6 +57,14 @@ jobs:
             RP_ORIGIN=${{ secrets.RP_ORIGIN }}
             RP_ID=${{ secrets.RP_ID }}
 
+    - name: Send success notification to Discord for Docker Image
+      if: success()
+      uses: appleboy/discord-action@master
+      with:
+        webhook_id: ${{ secrets.DISCORD_WEBHOOK_ID }}
+        webhook_token: ${{ secrets.DISCORD_WEBHOOK_TOKEN }}
+        message: "Docker image built and pushed successfully: `${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPOSITORY_NAME }}:latest` is now available."
+
   deploy: 
     needs: build
     runs-on: ubuntu-latest
@@ -62,5 +85,11 @@ jobs:
 
             # Run the new container
             docker run -d --name backend -p 3001:3001 ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPOSITORY_NAME }}:latest
-    
       
+      - name: Send success notification to Discord after Deploying to EC2.
+        if: success()
+        uses: appleboy/discord-action@master
+        with:
+          webhook_id: ${{ secrets.DISCORD_WEBHOOK_ID }}
+          webhook_token: ${{ secrets.DISCORD_WEBHOOK_TOKEN }}
+          message: "Deployment Successful: The polling app is live on AWS EC2!"
