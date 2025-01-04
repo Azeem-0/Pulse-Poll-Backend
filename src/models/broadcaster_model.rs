@@ -11,18 +11,18 @@ use std::sync::Mutex;
 
 use super::poll_model::Poll;
 
+#[derive(Debug)]
 pub struct Broadcaster {
-    clients: Vec<Sender<Bytes>>,
+    pub clients: Vec<Sender<Bytes>>,
 }
 
 impl Broadcaster {
     pub fn create() -> Data<Mutex<Self>> {
         let me = Data::new(Mutex::new(Broadcaster::new()));
-        // let me_clone = me.clone();
-        // Use tokio spawn for the ping task
-        // tokio::spawn(async move {
-        //     Broadcaster::spawn_ping(me_clone).await;
-        // });
+        let me_clone = me.clone();
+        tokio::spawn(async move {
+            Broadcaster::spawn_ping(me_clone).await;
+        });
         me
     }
 
@@ -33,7 +33,7 @@ impl Broadcaster {
     }
 
     pub async fn spawn_ping(me: Data<Mutex<Self>>) {
-        let mut interval = interval(Duration::from_secs(10));
+        let mut interval = interval(Duration::from_secs(30));
 
         loop {
             interval.tick().await;
